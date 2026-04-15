@@ -158,6 +158,15 @@ export function sumByWeek(f: AggFilter) {
   `).all(f.userId, f.from, f.to) as { week: string; amount: number }[];
 }
 
+export function sumByWeekCategory(f: AggFilter) {
+  return getDb().prepare(`
+    SELECT strftime('%Y-W%W', date) as week, category, SUM(amount) as amount
+    FROM transactions
+    WHERE user_id = ? AND date >= ? AND date <= ?
+    GROUP BY week, category ORDER BY week ASC
+  `).all(f.userId, f.from, f.to) as { week: string; category: string; amount: number }[];
+}
+
 export function topMerchants(f: AggFilter, limit = 10) {
   return getDb().prepare(`
     SELECT merchant, SUM(amount) as amount, COUNT(*) as count

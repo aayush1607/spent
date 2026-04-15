@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import SpendLine from '$lib/components/charts/SpendLine.svelte';
+  import ToolCallBlock from '$lib/components/agent/ToolCallBlock.svelte';
   import { activeMonth, stepMonth, canGoNext } from '$lib/stores/month.js';
   import {
     messages as agentMessages, isStreaming, conversationId,
@@ -15,11 +17,10 @@
     summary?: {
       total: number;
       byCategory: { category: string; amount: number; count: number }[];
-      bySource:   { source: string; amount: number; count: number }[];
-      byWeek:     { week: string; amount: number }[];
+      byWeek:          { week: string; amount: number }[];
+      byWeekCategory:  { week: string; category: string; amount: number }[];
       vsLastMonth: number | null;
       dailyAvg: number;
-      projected: number;
     } | null;
     merchants?: { merchant: string; amount: number; count: number }[];
     recentTxns?: { id: string; date: string; merchant: string; snippet: string | null; category: string; amount: number; emailId: string }[];
@@ -54,14 +55,6 @@
     return m[cat] ?? 'var(--cat-other)';
   }
 
-  function sourceIcon(src: string) {
-    const m: Record<string, string> = {
-      swiggy: 'Sw', zomato: 'Zo', amazon: 'Az', rapido: 'Rp',
-      uber: 'Ub', cleartrip: 'Ct', indigo: '6E', deepseek_generic: '??'
-    };
-    return m[src] ?? src.slice(0, 2).toUpperCase();
-  }
-
   function sourceColor(src: string) {
     const m: Record<string, string> = {
       swiggy: '#e8673a', zomato: '#e05555', amazon: '#d4a853',
@@ -85,7 +78,32 @@
   }
 
   let syncing = false;
+  let stopping = false;
   let _syncReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+  // ── Resizable chat pane ────────────────────────────────────────────────────
+  const CHAT_MIN = 280;
+  const CHAT_MAX = 700;
+  let chatWidth = 360;
+  let dragging = false;
+
+  function onDragStart(e: MouseEvent) {
+    e.preventDefault();
+    dragging = true;
+    const startX = e.clientX;
+    const startW = chatWidth;
+    function onMove(ev: MouseEvent) {
+      const delta = startX - ev.clientX;          // drag left = wider
+      chatWidth = Math.max(CHAT_MIN, Math.min(CHAT_MAX, startW + delta));
+    }
+    function onUp() {
+      dragging = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
 
   async function pollUntilIdle() {
     while (true) {
@@ -106,15 +124,13 @@
   }
 
   async function stopSync() {
-    // Signal the server to abort
+    if (stopping) return;
+    stopping = true;
+    // Signal the server to abort — it will emit a done event after finishing the
+    // current batch, which streamDone in triggerSync picks up and reloads normally.
+    // Do NOT cancel the reader here: cancelling causes read() to resolve done:true
+    // which reloads the page before the abort fires, making the stop button reappear.
     await fetch('/api/sync', { method: 'DELETE' });
-    // Cancel the active SSE reader so triggerSync's await unblocks
-    if (_syncReader) {
-      try { _syncReader.cancel(); } catch { /* ignore */ }
-      _syncReader = null;
-    }
-    // Now just poll until server confirms idle, then reload
-    pollUntilIdle();
   }
 
   async function triggerSync(mode: 'incremental' | 'full' = 'incremental') {
@@ -151,6 +167,7 @@
       window.location.reload();
     } catch {
       _syncReader = null;
+      stopping = false;
       // SSE connection dropped — fall back to polling
       pollUntilIdle();
     }
@@ -338,8 +355,8 @@
           </div>
         {/if}
         {#if syncing}
-          <button class="sync-btn stop-btn" on:click={stopSync}>
-            ■ stop
+          <button class="sync-btn stop-btn" on:click={stopSync} disabled={stopping}>
+            {stopping ? 'stopping…' : '■ stop'}
           </button>
         {:else}
           <button class="sync-btn" on:click={() => triggerSync('incremental')}>
@@ -410,73 +427,34 @@
             <div class="stat-val serif">₹{Math.round(s?.dailyAvg ?? 0).toLocaleString('en-IN')}</div>
             <div class="stat-delta" style="color:var(--text2)">this month</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">projected eom</div>
-            <div class="stat-val serif" style="color:var(--accent2)">₹{Math.round(s?.projected ?? 0).toLocaleString('en-IN')}</div>
-            <div class="stat-delta" style="color:var(--text2)">at current rate</div>
-          </div>
+
         </div>
 
-        <!-- Weekly chart -->
+        <!-- Weekly line chart -->
         {#if s?.byWeek?.length}
           <div class="chart-card">
-            <div class="card-label">
-              <span>weekly spend</span>
-            </div>
-            <div class="bars">
-              {#each s.byWeek as w, i}
-                {@const max = Math.max(...s.byWeek.map(x => x.amount), 1)}
-                {@const isPeak = w.amount === max}
-                <div class="bar-wrap">
-                  <div class="bar-amt">{w.amount > 999 ? '₹' + Math.round(w.amount/1000) + 'k' : '₹' + w.amount}</div>
-                  <div class="bar" class:peak={isPeak}
-                    style="height: {Math.round((w.amount / max) * 72)}px">
-                  </div>
-                  <div class="bar-lbl">w{i + 1}</div>
-                </div>
-              {/each}
-            </div>
+            <div class="card-label"><span>weekly spend</span></div>
+            <SpendLine weeks={s.byWeek} weeksByCategory={s.byWeekCategory ?? []} />
           </div>
         {/if}
 
-        <!-- Category + Source grid -->
-        <div class="grid2">
-          <div class="chart-card">
-            <div class="card-label"><span>by category</span></div>
-            {#each s?.byCategory ?? [] as cat}
-              {@const max = Math.max(...(s?.byCategory ?? []).map(c => c.amount), 1)}
-              <div class="cat-item">
-                <div class="cat-pip" style="background:{catColor(cat.category)}"></div>
-                <div class="cat-name">{cat.category}</div>
-                <div class="cat-track">
-                  <div class="cat-fill" style="width:{(cat.amount/max)*100}%;background:{catColor(cat.category)}"></div>
-                </div>
-                <div class="cat-val serif">₹{cat.amount.toLocaleString('en-IN')}</div>
+        <!-- Category breakdown -->
+        <div class="chart-card">
+          <div class="card-label"><span>by category</span></div>
+          {#each s?.byCategory ?? [] as cat}
+            {@const max = Math.max(...(s?.byCategory ?? []).map(c => c.amount), 1)}
+            <div class="cat-item">
+              <div class="cat-pip" style="background:{catColor(cat.category)}"></div>
+              <div class="cat-name">{cat.category}</div>
+              <div class="cat-track">
+                <div class="cat-fill" style="width:{(cat.amount/max)*100}%;background:{catColor(cat.category)}"></div>
               </div>
-            {/each}
-            {#if !s?.byCategory?.length}
-              <div class="empty-state">no data</div>
-            {/if}
-          </div>
-
-          <div class="chart-card">
-            <div class="card-label"><span>by source</span></div>
-            {#each s?.bySource ?? [] as src}
-              <div class="brand-item">
-                <div class="brand-icon" style="background:{sourceColor(src.source)}18;color:{sourceColor(src.source)}">
-                  {sourceIcon(src.source)}
-                </div>
-                <div class="brand-meta">
-                  <div class="brand-name">{src.source}</div>
-                  <div class="brand-count">{src.count} orders</div>
-                </div>
-                <div class="brand-val serif">₹{src.amount.toLocaleString('en-IN')}</div>
-              </div>
-            {/each}
-            {#if !s?.bySource?.length}
-              <div class="empty-state">no data</div>
-            {/if}
-          </div>
+              <div class="cat-val serif">₹{cat.amount.toLocaleString('en-IN')}</div>
+            </div>
+          {/each}
+          {#if !s?.byCategory?.length}
+            <div class="empty-state">no data</div>
+          {/if}
         </div>
 
         <!-- Top merchants -->
@@ -593,16 +571,16 @@
       </div>
       {/if}
 
-      <div class="divider"></div>
+      <div class="resize-handle" class:dragging on:mousedown={onDragStart} role="separator" aria-label="resize chat panel"></div>
 
       <!-- CHAT PANEL -->
-      <div class="panel-chat">
+      <div class="panel-chat" style="width:{chatWidth}px">
         <div class="chat-header">
           <div class="chat-header-left">
             <div class="agent-dot">S</div>
             <div>
-              <div class="chat-title">spent agent</div>
-              <div class="chat-sub">asks your gmail, not your memory</div>
+              <div class="chat-title">Ask Spent</div>
+              <div class="chat-sub">Invoices to Insights</div>
             </div>
           </div>
         </div>
@@ -617,7 +595,7 @@
                 {/if}
                 What do you want to know?
               </div>
-              <div class="msg-meta">spent agent · now</div>
+              <div class="msg-meta">Ask Spent · now</div>
             </div>
           {/if}
 
@@ -626,11 +604,12 @@
               {#if msg.role === 'agent'}
                 <!-- Tool call traces -->
                 {#each msg.toolCalls ?? [] as tc (tc.id)}
-                  <div class="step-trace">
-                    <span class:running={tc.status === 'running'}>{tc.status === 'running' ? '◌' : '↳'}</span>
-                    {tc.name.replace('_', ' ')}
-                    {#if tc.status === 'done'}· done{/if}
-                  </div>
+                  <ToolCallBlock
+                    name={tc.name}
+                    input={tc.input}
+                    result={tc.result}
+                    status={tc.status}
+                  />
                 {/each}
               {/if}
 
@@ -643,7 +622,7 @@
                   {msg.content}{#if msg.streaming}<span class="cursor-blink">▍</span>{/if}
                 {/if}
               </div>
-              <div class="msg-meta">{msg.role === 'user' ? 'you' : 'spent agent'} · now</div>
+              <div class="msg-meta">{msg.role === 'user' ? 'you' : 'Ask Spent'} · now</div>
             </div>
           {/each}
 
@@ -877,31 +856,6 @@
   /* Weekly bars */
   .bars { display: flex; align-items: flex-end; gap: 8px; height: 96px; }
   .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; justify-content: flex-end; }
-  .bar {
-    width: 100%;
-    border-radius: 3px 3px 0 0;
-    background: var(--bg4);
-    transition: height 0.5s var(--ease);
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-  }
-  .bar::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--accent);
-    opacity: 0;
-    transition: opacity var(--dur-fast);
-  }
-  .bar:hover::after { opacity: 0.15; }
-  .bar.peak { background: var(--accent); opacity: 0.9; }
-  .bar-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
-  .bar-amt { font-size: 9px; color: var(--text2); }
-
-  /* Grid 2 col */
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-  .grid2 .chart-card { margin-bottom: 0; }
 
   /* Category */
   .cat-item {
@@ -955,13 +909,33 @@
 
   .empty-state { padding: 24px 0; text-align: center; color: var(--text3); font-size: 12px; }
 
-  /* DIVIDER */
-  .divider { width: 1px; background: var(--border); flex-shrink: 0; }
+  /* DIVIDER / RESIZE HANDLE */
+  .resize-handle {
+    width: 5px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    transition: background 0.15s;
+    z-index: 5;
+  }
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    inset: 0 2px;
+    background: var(--border);
+    transition: background 0.15s;
+  }
+  .resize-handle:hover::after,
+  .resize-handle.dragging::after {
+    background: var(--accent);
+  }
 
   /* CHAT */
   .panel-chat {
-    width: 360px;
     flex-shrink: 0;
+    min-width: 280px;
+    max-width: 700px;
     display: flex;
     flex-direction: column;
     background: var(--bg);
@@ -1014,16 +988,6 @@
     border-bottom-left-radius: 3px;
   }
   .msg-meta { font-size: 10px; color: var(--text3); padding: 0 4px; }
-
-  .step-trace {
-    font-size: 10px;
-    color: var(--text3);
-    padding: 2px 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .step-trace .running { color: var(--accent); animation: pulse 1s infinite; }
 
   .thinking-dots { display: flex; gap: 4px; align-items: center; height: 18px; }
   .thinking-dots span {
@@ -1094,7 +1058,7 @@
 
   /* Responsive */
   @media (max-width: 1100px) {
-    .panel-chat { width: 320px; }
+    .panel-chat { min-width: 280px; }
   }
   @media (max-width: 900px) {
     .panel-chat { display: none; }
@@ -1103,7 +1067,6 @@
   @media (max-width: 600px) {
     .sidebar { display: none; }
     .stats-row { grid-template-columns: 1fr; }
-    .grid2 { grid-template-columns: 1fr; }
     .panel-dash { padding: 16px; }
     nav { padding: 0 16px; }
   }

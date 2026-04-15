@@ -39,6 +39,12 @@ export function appendAgentText(id: string, delta: string) {
   );
 }
 
+export function setAgentText(id: string, content: string) {
+  messages.update((msgs) =>
+    msgs.map((m) => m.id === id ? { ...m, content } : m)
+  );
+}
+
 export function appendAgentReasoning(id: string, delta: string) {
   messages.update((msgs) =>
     msgs.map((m) => m.id === id ? { ...m, reasoning: (m.reasoning ?? '') + delta } : m)

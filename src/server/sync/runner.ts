@@ -171,16 +171,18 @@ export async function runSync(
 
           const brandHint = parserId ? PARSER_BRAND[parserId] : undefined;
 
-          // 1. Try AI first
+          // For known-brand emails: brand parser first (fast, tuned, no API cost).
+          // AI runs only if brand parser returns null, or for unknown senders.
           let txns: ParsedTxn[] | null = null;
-          const aiResult = await extractWithAI(ctx, brandHint);
-
-          if (aiResult) {
-            txns = [aiResult];
-          } else if (parserId) {
-            // 2. AI returned null → brand parser fallback
+          if (parserId) {
             const parser = getParserById(parserId);
             if (parser) txns = await parser.parse(ctx);
+          }
+
+          // Brand parser returned nothing (or no brand parser) → try AI
+          if (!txns?.length) {
+            const aiResult = await extractWithAI(ctx, brandHint);
+            if (aiResult) txns = [aiResult];
           }
 
           if (txns?.length) {

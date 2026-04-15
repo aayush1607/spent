@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { env } from '../config.js';
-import { SYSTEM_PROMPT } from './prompts.js';
+import { getSystemPrompt } from './prompts.js';
 import { queryTransactionsTool, runQueryTransactions, QueryTransactionsInput } from './tools/query_transactions.js';
 import { searchGmailTool, runSearchGmail, SearchGmailInput } from './tools/search_gmail.js';
 
@@ -35,6 +35,8 @@ function getClient(): OpenAI {
     apiKey: env.AZURE_AI_KEY,
     baseURL: `${env.AZURE_AI_ENDPOINT}/models`,
     defaultHeaders: { 'Authorization': `Bearer ${env.AZURE_AI_KEY}` },
+    timeout: 120_000,
+    maxRetries: 2,
   });
 }
 
@@ -59,11 +61,12 @@ export async function runAgentLoop(
   userId: string,
   userMessage: string,
   history: Message[],
-  emit: AgentEmitter
+  emit: AgentEmitter,
+  viewingMonth?: string
 ): Promise<Message[]> {
   const client = getClient();
   const messages: Message[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: getSystemPrompt(viewingMonth) },
     ...history,
     { role: 'user', content: userMessage },
   ];
@@ -105,8 +108,10 @@ export async function runAgentLoop(
         }
 
         if (delta.content) {
-          fullContent += delta.content;
-          emit({ type: 'text', delta: delta.content });
+          // Accumulate raw content — don't emit yet; Grok leaks XML tool-call markup
+          // into streamed text which can only be safely stripped on the complete string.
+          const stripped = delta.content.replace(/<\/?(xai:[^>]*)>/g, '');
+          fullContent += stripped;
         }
 
         if (delta.tool_calls) {
@@ -129,13 +134,23 @@ export async function runAgentLoop(
 
       // No tool calls — final answer
       if (pendingToolCalls.size === 0) {
-        // Grok reasoning models sometimes put the answer in reasoning_content
-        // and leave content empty — use reasoning as fallback
-        const answer = fullContent || reasoningContent;
-        if (!fullContent && reasoningContent) {
+        // Strip all XML tool-call leakage from the full accumulated content
+        const cleanAnswer = (
+          fullContent
+            .replace(/<xai:function_call[^>]*>[\/\s\S]*?<\/xai:function_call>/g, '')
+            .replace(/<parameter[^>]*>[^<]*<\/parameter>/g, '')
+            .replace(/<\/?xai:[^>]*>/g, '')
+            .trim()
+        ) || reasoningContent;
+        // Emit the full clean text as one chunk
+        if (cleanAnswer) {
+          emit({ type: 'text', delta: cleanAnswer });
+        }
+        // Grok reasoning fallback
+        if (!cleanAnswer && reasoningContent) {
           emit({ type: 'text', delta: reasoningContent });
         }
-        messages.push({ role: 'assistant', content: answer });
+        messages.push({ role: 'assistant', content: cleanAnswer });
         emit({ type: 'done', stopReason });
         emittedDone = true;
         break;

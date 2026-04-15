@@ -16,8 +16,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   const userId = cookies.get('spent_uid');
   if (!userId) return new Response('Unauthorized', { status: 401 });
 
-  const body = await request.json() as { message: string; conversationId?: string };
-  const { message, conversationId } = body;
+  const body = await request.json() as { message: string; conversationId?: string; viewingMonth?: string };
+  const { message, conversationId, viewingMonth } = body;
 
   if (!message?.trim()) return new Response('Bad Request', { status: 400 });
 
@@ -40,7 +40,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         }
       };
 
-      runAgentLoop(userId, message, history, emit)
+      runAgentLoop(userId, message, history, emit, viewingMonth)
         .then((newHistory) => {
           sessions.set(sessId, { history: newHistory, at: Date.now() });
         })

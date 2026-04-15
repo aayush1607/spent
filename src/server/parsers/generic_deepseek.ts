@@ -6,6 +6,21 @@ import { parseEmailDate } from './util.js';
 
 export const VALID_CATEGORIES: Category[] = ['food', 'shopping', 'travel', 'transport', 'bills', 'entertainment', 'other'];
 
+// Approximate exchange rates to INR — update periodically if needed
+const TO_INR: Record<string, number> = {
+  INR: 1,
+  USD: 90,
+  EUR: 100,
+  GBP: 110,
+  AED: 23,
+  SGD: 63,
+};
+
+function toINR(amount: number, currency: string): number {
+  const rate = TO_INR[currency.toUpperCase()] ?? 1;
+  return parseFloat((amount * rate).toFixed(2));
+}
+
 /** Canonical brand names keyed by parser id — used to anchor AI merchant extraction */
 export const PARSER_BRAND: Record<string, string> = {
   swiggy:    'Swiggy',
@@ -29,6 +44,7 @@ interface AIResponse {
   skip?: boolean;
   merchant?: string;
   amount?: number;
+  currency?: string;
   date?: string;
   category?: string;
 }
@@ -55,24 +71,30 @@ export async function extractWithAI(
 
   const prompt = `You are a personal finance assistant that extracts spending transactions from emails.
 
-ONLY extract a transaction if this email is a confirmation that the RECIPIENT has ALREADY PAID money — e.g. order confirmation, ride receipt, payment confirmation, booking confirmation after checkout.
+Extract a transaction for any email confirming that the RECIPIENT has ALREADY PAID or committed money:
+- Food delivery order confirmed/delivered (Swiggy, Zomato) — order placed = money paid
+- Ride receipt or fare summary (Uber, Rapido, Ola)
+- E-commerce order confirmation or invoice (Amazon, Flipkart)
+- Flight/hotel/travel booking confirmation (Cleartrip, IndiGo, MakeMyTrip)
+- Subscription, bill payment, or service invoice paid
 
 Return {"skip":true} for ANY of the following:
-- Invoice or bill SENT to the recipient requesting payment (GST invoice, vendor bill, training fee, etc.)
-- Investment, SIP, mutual fund, or stock purchase notification (InCred, Zerodha, Groww, Paytm Money, etc.)
+- Invoice or bill SENT to the recipient requesting future payment (GST invoice, vendor bill, training fee, etc.)
+- Investment, SIP, mutual fund, or stock purchase notification (InCred, Zerodha, Groww, etc.)
 - Bank account credit, income deposit, or salary notification
-- Refund, cashback, or reversal
+- Refund, cashback, or reversal (money coming BACK to recipient)
 - Promotional offer, newsletter, or marketing email
-- Reminder, quote, pending payment, or due date notice
-- Any notification where the money has NOT yet left the recipient's account
+- Shipping/delivery status update that contains NO payment amount
+- Pending payment, due date notice, or payment reminder
 ${brandLine}
 
-If it IS a valid completed-payment confirmation, return ONLY valid JSON:
-{"skip":false,"merchant":"<brand>","amount":<INR number>,"date":"<YYYY-MM-DD>","category":"<food|shopping|travel|transport|bills|entertainment|other>"}
+If it IS a valid payment/order confirmation, return ONLY valid JSON:
+{"skip":false,"merchant":"<brand>","amount":<number>,"currency":"<ISO 4217 code, e.g. INR or USD>","date":"<YYYY-MM-DD>","category":"<food|shopping|travel|transport|bills|entertainment|other>"}
 
 Rules:
 - merchant: use the PLATFORM/BRAND name (e.g. "Zomato" not the restaurant; "Amazon" not the product name)
-- amount: positive number in INR, no symbols
+- amount: positive number in its ORIGINAL currency (do NOT convert), no symbols
+- currency: 3-letter ISO code of the currency shown in the email (INR, USD, EUR, etc.)
 - category: pick closest match
 - Return ONLY valid JSON, nothing else
 
@@ -109,10 +131,13 @@ Content: ${ctx.textContent.slice(0, 2500)}`;
       ? (parsed.category as Category)
       : 'other';
 
+    const rawCurrency = (parsed.currency ?? 'INR').toUpperCase();
+    const amountINR   = toINR(parsed.amount, rawCurrency);
+
     const txn: ParsedTxn = {
       date:     parsed.date ?? parseEmailDate(ctx.date),
       merchant: parsed.merchant,
-      amount:   parsed.amount,
+      amount:   amountINR,
       currency: 'INR',
       category,
       source:   'deepseek_generic',

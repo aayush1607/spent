@@ -2,6 +2,7 @@
   import { isStreaming, messages, conversationId,
            addUserMessage, addAgentMessage, appendAgentText, appendAgentReasoning,
            addToolCall, resolveToolCall, finalizeMessage } from '$lib/stores/agent.js';
+  import { activeMonth } from '$lib/stores/month.js';
 
   let input = '';
   let textarea: HTMLTextAreaElement;
@@ -35,7 +36,7 @@
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, conversationId: convId }),
+        body: JSON.stringify({ message: msg, conversationId: convId, viewingMonth: $activeMonth }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -68,8 +69,8 @@
             case 'text':        appendAgentText(agentId, data.delta); break;
             case 'tool_call':   addToolCall(agentId, { id: data.id, name: data.name, input: data.input }); break;
             case 'tool_result': resolveToolCall(agentId, data.id, data.result); break;
-            case 'done':
-            case 'error':       break;
+            case 'done':        break;
+            case 'error':       appendAgentText(agentId, `\n⚠ ${data.message ?? 'Something went wrong.'}`); break;
           }
         }
       }

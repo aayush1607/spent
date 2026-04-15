@@ -14,10 +14,9 @@ export const swiggyParser: Parser = {
   async parse(ctx: ParserContext): Promise<ParsedTxn[] | null> {
     const text = ctx.textContent;
 
-    // Require an explicit total keyword — avoid picking up random amounts
-    const amount = parseINR(
-      text.match(/(?:grand\s+total|total\s+amount|order\s+total|bill\s+total|amount\s+paid)[^\d₹Rs]*?((?:₹|Rs\.?|INR)\s*[\d,]+(?:\.\d{1,2})?)/i)?.[1] ?? ''
-    );
+    // Try to find an explicit total keyword first; fall back to any ₹ amount in the email
+    const totalMatch = text.match(/(?:grand\s+total|total\s+amount|order\s+total|bill\s+total|amount\s+paid|you\s+paid|total\s+bill|total)[^\d₹Rs]*?((?:₹|Rs\.?|INR)\s*[\d,]+(?:\.\d{1,2})?)/i);
+    const amount = parseINR(totalMatch?.[1] ?? text);
     if (!amount || amount <= 0) return null;
 
     // Restaurant name: usually in subject "Your Swiggy order from <Restaurant>"

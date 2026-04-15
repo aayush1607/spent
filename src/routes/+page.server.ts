@@ -20,15 +20,15 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 
   try {
     const {
-      totalSpend, sumByCategory, sumBySource, sumByWeek,
+      totalSpend, sumByCategory, sumByWeek, sumByWeekCategory,
       topMerchants, queryTransactions,
     } = await import('$server/db/repo/transactions.js');
     const { getSyncState } = await import('$server/db/repo/syncState.js');
 
     const total       = totalSpend(agg);
     const byCategory  = sumByCategory(agg);
-    const bySource    = sumBySource(agg);
-    const byWeek      = sumByWeek(agg);
+    const byWeek          = sumByWeek(agg);
+    const byWeekCategory  = sumByWeekCategory(agg);
     const merchants   = topMerchants(agg, 8);
     const recentTxns  = queryTransactions({ userId, from, to, limit: 20, sort: 'date', dir: 'desc' }).items;
 
@@ -39,16 +39,13 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
     const vsLastMonth = prevTotal > 0 ? (total - prevTotal) / prevTotal : null;
 
     const syncState  = getSyncState(userId);
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const daysPassed  = Math.max(now.getDate(), 1);
     const dailyAvg    = total / daysPassed;
-    const daysLeft    = daysInMonth - now.getDate();
-    const projected   = total + dailyAvg * Math.max(daysLeft, 0);
 
     return {
       connected: true,
       month,
-      summary: { total, byCategory, bySource, byWeek, vsLastMonth, dailyAvg, projected },
+      summary: { total, byCategory, byWeek, byWeekCategory, vsLastMonth, dailyAvg },
       merchants,
       recentTxns,
       lastSyncAt: syncState?.lastSyncAt ?? null,
