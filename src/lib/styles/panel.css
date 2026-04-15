@@ -1,0 +1,67 @@
+.panel {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-body {
+  padding: var(--sp-4);
+}
+
+.hair {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--r-chip);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.chip-food          { color: var(--cat-food); }
+.chip-shopping      { color: var(--cat-shopping); }
+.chip-travel        { color: var(--cat-travel); }
+.chip-transport     { color: var(--cat-transport); }
+.chip-bills         { color: var(--cat-bills); }
+.chip-entertainment { color: var(--cat-entertainment); }
+.chip-other         { color: var(--cat-other); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 12px;
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-panel);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease),
+              background var(--dur-fast) var(--ease);
+}
+.btn:hover { border-color: var(--amber); color: var(--amber); }
+.btn-primary { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 500; }
+.btn-primary:hover { background: #FFD060; border-color: #FFD060; color: #000; }

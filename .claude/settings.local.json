@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/aayush/.nvm/versions/**)",
+      "Read(//Users/aayush/**)",
+      "Bash(pkgutil --pkgs)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

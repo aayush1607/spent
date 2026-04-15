@@ -1,0 +1,36 @@
+:root {
+  --bg:   #080808;
+  --bg2:  #0f0f0f;
+  --bg3:  #161616;
+  --bg4:  #1e1e1e;
+  --border:  #252525;
+  --border2: #2e2e2e;
+  --text:  #e8e4dc;
+  --text2: #8a8680;
+  --text3: #4a4744;
+
+  --accent:  #e8673a;
+  --accent2: #d4a853;
+  --teal:    #4db8a8;
+  --green:   #6bb87a;
+  --purple:  #9b8ec4;
+  --red:     #e05555;
+
+  --cat-food:          #e8673a;
+  --cat-shopping:      #d4a853;
+  --cat-travel:        #4db8a8;
+  --cat-transport:     #6bb87a;
+  --cat-bills:         #e05555;
+  --cat-entertainment: #9b8ec4;
+  --cat-other:         #6b6760;
+
+  --serif: 'Instrument Serif', Georgia, serif;
+  --mono:  'Geist Mono', 'Fira Code', monospace;
+
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 150ms;
+  --dur-med:  300ms;
+
+  --r: 6px;
+  --r-sm: 3px;
+}

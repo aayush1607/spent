@@ -1,0 +1,47 @@
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+.mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+.prose { font-family: 'Inter', system-ui, sans-serif; }
+.tabular { font-variant-numeric: tabular-nums; }
+.tracked { letter-spacing: 0.08em; }
+
+/* Type scale */
+.text-xs   { font-size: 11px; line-height: 16px; }
+.text-sm   { font-size: 12px; line-height: 18px; }
+.text-base { font-size: 13px; line-height: 20px; }
+.text-md   { font-size: 15px; line-height: 22px; }
+.text-lg   { font-size: 20px; line-height: 28px; }
+.text-xl   { font-size: 28px; line-height: 32px; }
+.text-2xl  { font-size: 44px; line-height: 48px; }
+
+.label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
