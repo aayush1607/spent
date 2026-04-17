@@ -73,6 +73,20 @@ CREATE INDEX IF NOT EXISTS idx_txn_source         ON transactions(user_id, sourc
 CREATE INDEX IF NOT EXISTS idx_txn_merchant       ON transactions(user_id, merchant);
 CREATE INDEX IF NOT EXISTS idx_sync_attempts_user ON sync_attempts(user_id, attempted_at DESC);`,
   },
+  {
+    name: '003_sender_filters.sql',
+    sql: `
+CREATE TABLE IF NOT EXISTS sender_filters (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    TEXT NOT NULL,
+  email      TEXT NOT NULL,
+  label      TEXT,
+  parser_id  TEXT,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  UNIQUE(user_id, email)
+);`,
+  },
 ];
 
 export function runMigrations(): void {

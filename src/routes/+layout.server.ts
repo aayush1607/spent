@@ -15,9 +15,13 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
 
     const { getToken } = await import('$server/db/repo/oauthTokens.js');
     const { getSyncState } = await import('$server/db/repo/syncState.js');
+    const { seedDefaultFilters } = await import('$server/db/repo/senderFilters.js');
 
     const token = getToken(userId);
     if (!token) return { connected: false, email: null, lastSyncAt: null };
+
+    // Ensure default sender filters exist for this user (no-op if already seeded)
+    seedDefaultFilters(userId);
 
     const syncState = getSyncState(userId);
     return {
