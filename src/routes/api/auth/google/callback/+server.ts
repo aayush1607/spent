@@ -21,7 +21,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
-      secure: false,           // localhost dev — set true in prod
+      secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 30,
     });
     throw redirect(302, '/');
